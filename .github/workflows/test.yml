@@ -1,81 +1,28 @@
 name: Tests
 
+# 진단 전용 브랜치(fjvbn2003 포크). containers/podman-compose#1585 의 CI 실패를 재현한다.
+# 업스트림 test.yml 과 같은 컨테이너·같은 설치 단계를 쓰고, 시험 대신 diag.sh 를 돌린다.
 on:
-  workflow_dispatch:
   push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  test:
+  diag:
     strategy:
       fail-fast: false
       matrix:
         conf: [
-          {dist: bookworm, python: '3.9', podman: '4.3.1', mode: 'root'},
-          {dist: bookworm, python: '3.9', podman: '4.9.5', mode: 'root'},
-          {dist: bookworm, python: '3.9', podman: '5.0.3', mode: 'root'},
-          {dist: bookworm, python: '3.9', podman: '5.4.2', mode: 'root'},
-          {dist: bookworm, python: '3.10', podman: '4.3.1', mode: 'root'},
-          {dist: bookworm, python: '3.10', podman: '4.9.5', mode: 'root'},
-          {dist: bookworm, python: '3.10', podman: '5.0.3', mode: 'root'},
-          {dist: bookworm, python: '3.10', podman: '5.4.2', mode: 'root'},
-          {dist: bookworm, python: '3.11', podman: '4.3.1', mode: 'root'},
-          {dist: bookworm, python: '3.11', podman: '4.9.5', mode: 'root'},
-          {dist: bookworm, python: '3.11', podman: '5.0.3', mode: 'root'},
-          {dist: bookworm, python: '3.11', podman: '5.4.2', mode: 'root'},
-          {dist: bookworm, python: '3.12', podman: '4.3.1', mode: 'root'},
-          {dist: bookworm, python: '3.12', podman: '4.9.5', mode: 'root'},
           {dist: bookworm, python: '3.12', podman: '5.0.3', mode: 'root'},
           {dist: bookworm, python: '3.12', podman: '5.4.2', mode: 'root'},
-          {dist: bookworm, python: '3.13', podman: '4.3.1', mode: 'root'},
-          {dist: bookworm, python: '3.13', podman: '4.9.5', mode: 'root'},
-          {dist: bookworm, python: '3.13', podman: '5.0.3', mode: 'root'},
-          {dist: bookworm, python: '3.13', podman: '5.4.2', mode: 'root'},
-          {dist: trixie, python: '3.9', podman: '5.7.1', mode: 'root'},
-          {dist: trixie, python: '3.9', podman: '5.7.1', mode: 'rootless'},
-          {dist: trixie, python: '3.10', podman: '5.7.1', mode: 'root'},
-          {dist: trixie, python: '3.10', podman: '5.7.1', mode: 'rootless'},
-          {dist: trixie, python: '3.11', podman: '5.7.1', mode: 'root'},
-          {dist: trixie, python: '3.11', podman: '5.7.1', mode: 'rootless'},
           {dist: trixie, python: '3.12', podman: '5.7.1', mode: 'root'},
           {dist: trixie, python: '3.12', podman: '5.7.1', mode: 'rootless'},
-          {dist: trixie, python: '3.13', podman: '5.7.1', mode: 'root'},
-          {dist: trixie, python: '3.13', podman: '5.7.1', mode: 'rootless'},
         ]
     runs-on: ubuntu-latest
     container:
       image: "docker.io/library/python:${{ matrix.conf.python }}-${{ matrix.conf.dist }}"
-      # cgroupns needed to address the following error:
-      # write /sys/fs/cgroup/cgroup.subtree_control: operation not supported
       options: --privileged --cgroupns=host
     steps:
     - uses: actions/checkout@v7
-    - name: Install podman-4.3.1
-      if: matrix.conf.podman == '4.3.1'
-      run: |
-        set -e
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y podman
-    - name: Install dependencies for podman-4.9.5
-      if: matrix.conf.podman == '4.9.5'
-      shell: bash
-      run: |
-        DEBIAN_FRONTEND=noninteractive apt update -y && apt install -y buildah
-        BASE_URL="https://github.com/p12tic/podman-compose-test-data/raw/refs/heads/master/deb_files"
-        DEB_FILES=(
-          "${BASE_URL}/deb-files-podman-4.9.5/podman_4.9.5+compose1-1_amd64.deb"
-          "${BASE_URL}/deb-files-crun-1-21/crun_1.21-1_amd64.deb"
-        )
-        TMPDIR=$(mktemp -d)
-        trap 'rm -rf "$TMPDIR"' EXIT
-        for url in "${DEB_FILES[@]}"; do
-          # strip everything up to the last slash
-          filename=${url##*/}
-          echo "Downloading $url ..."
-          curl -fsSL -o "$TMPDIR/$filename" "$url"
-        done
-        echo "Installing packages ..."
-        apt-get update -qq
-        apt-get install -y -qq "$TMPDIR"/*.deb
     - name: Install dependencies for podman-5.0.3
       if: matrix.conf.podman == '5.0.3'
       shell: bash
@@ -87,14 +34,7 @@ jobs:
           "${BASE_URL}/deb-files-crun-1-21/crun_1.21-1_amd64.deb"
         )
         TMPDIR=$(mktemp -d)
-        trap 'rm -rf "$TMPDIR"' EXIT
-        for url in "${DEB_FILES[@]}"; do
-          # strip everything up to the last slash
-          filename=${url##*/}
-          echo "Downloading $url ..."
-          curl -fsSL -o "$TMPDIR/$filename" "$url"
-        done
-        echo "Installing packages ..."
+        for url in "${DEB_FILES[@]}"; do curl -fsSL -o "$TMPDIR/${url##*/}" "$url"; done
         apt-get update -qq
         apt-get install -y -qq "$TMPDIR"/*.deb
     - name: Install dependencies for podman-5.4.2
@@ -110,14 +50,7 @@ jobs:
           "${BASE_URL}/deb-files-aardvark-dns-1-14/aardvark-dns_1.14.0-1_amd64.deb"
         )
         TMPDIR=$(mktemp -d)
-        trap 'rm -rf "$TMPDIR"' EXIT
-        for url in "${DEB_FILES[@]}"; do
-          # strip everything up to the last slash
-          filename=${url##*/}
-          echo "Downloading $url ..."
-          curl -fsSL -o "$TMPDIR/$filename" "$url"
-        done
-        echo "Installing packages ..."
+        for url in "${DEB_FILES[@]}"; do curl -fsSL -o "$TMPDIR/${url##*/}" "$url"; done
         apt-get update -qq
         apt-get install -y -qq "$TMPDIR"/*.deb
     - name: Install dependencies for podman-5.7.1
@@ -127,9 +60,7 @@ jobs:
         DEBIAN_FRONTEND=noninteractive apt update -y && apt install -y crun netavark aardvark-dns
         BASE_URL="https://github.com/p12tic/podman-compose-test-data/raw/refs/heads/master/deb_files"
         DEB_FILE="${BASE_URL}/deb-files-podman-5.7.1/podman_5.7.1+compose1-1_amd64.deb"
-        echo "Downloading ${DEB_FILE##*/} ..."
         curl -fsSLO "$DEB_FILE"
-        echo "Installing package ..."
         apt-get install -y ./podman_5.7.1+compose1-1_amd64.deb
     - name: Setup root/rootless
       run: |
@@ -141,37 +72,17 @@ jobs:
         else
           echo "USER_EXEC_CMD=/bin/bash" >> $GITHUB_ENV
         fi
-    - name: Setup virtualenv, install other test dependencies
+    - name: Package layout (as root)
+      shell: bash
+      run: bash diag/layout.sh
+    - name: Minimal podman reproduction
+      run: $USER_EXEC_CMD -c "bash diag/repro.sh"
+    - name: podman-compose rm test with the PR change
       run: |
         $USER_EXEC_CMD -c "
         set -e
         python3 -m venv .venv
         . .venv/bin/activate
-        pip install --upgrade pip
-        pip install -r requirements.txt -r test-requirements.txt
-        "
-    - name: Run integration tests
-      run: |
-        $USER_EXEC_CMD -c "
-        set -e
-        . .venv/bin/activate
-        python -m unittest discover -v tests/integration
-        "
-      env:
-        TESTS_DEBUG: 1
-    - name: Run unit tests
-      run: |
-        $USER_EXEC_CMD -c "
-        set -e
-        . .venv/bin/activate
-        coverage run --source podman_compose -m unittest discover tests/unit
-        "
-    - name: Report coverage
-      run: |
-        chmod o+w "$GITHUB_STEP_SUMMARY"
-        $USER_EXEC_CMD -c "
-        set -e
-        . .venv/bin/activate
-        coverage combine
-        coverage report --format=markdown | tee -a $GITHUB_STEP_SUMMARY
+        pip install -q -r requirements.txt -r test-requirements.txt
+        python -m unittest -v tests.integration.compose_rm_behavior.test_compose_rm_behavior || true
         "
