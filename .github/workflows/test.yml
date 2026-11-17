@@ -75,7 +75,13 @@ jobs:
     - name: Package layout (as root)
       shell: bash
       run: bash diag/layout.sh
+    - name: AppArmor state (as root)
+      run: bash diag/apparmor.sh
     - name: Minimal podman reproduction
+      run: $USER_EXEC_CMD -c "bash diag/repro.sh"
+    - name: Apply candidate fix (as root)
+      run: bash diag/fix.sh ${{ matrix.conf.mode == 'rootless' && 'rootless' || matrix.conf.podman }}
+    - name: Minimal podman reproduction after fix
       run: $USER_EXEC_CMD -c "bash diag/repro.sh"
     - name: podman-compose rm test with the PR change
       run: |

@@ -13,6 +13,14 @@ podman network inspect diagnet --format '{{.DNSEnabled}} {{.Driver}}' ; echo "in
 podman run -d --name c1 --network diagnet $IMG sleep 300; echo "run rc=$?"
 sleep 1
 ls -la /run/containers/networks/aardvark-dns "${XDG_RUNTIME_DIR:-/nonexistent}/containers/networks/aardvark-dns" 2>&1
+# rootless 네트워크 프로세스(pasta·slirp4netns)가 어떤 AppArmor 프로필로 도는지 본다.
+for e in /proc/[0-9]*/exe; do
+  t=$(readlink "$e" 2>/dev/null) || continue
+  case "$t" in *pasta*|*passt*|*slirp4netns*|*aardvark*)
+    p=${e#/proc/}; p=${p%/exe}
+    echo "netproc pid=$p exe=$t label=$(cat /proc/$p/attr/current 2>&1) uid=$(stat -c %u /proc/$p)";;
+  esac
+done
 podman --log-level=debug stop -t 1 c1 > /tmp/stop.out 2> /tmp/stop.err; echo "stop rc=$?"
 grep -v -E 'level=debug msg="(Called|Using|Initializing|Cached|Not|Setting|Configured|Overriding|Merged|Reading|Found|Successfully)' /tmp/stop.err | tail -40
 podman rm c1; echo "rm rc=$?"
